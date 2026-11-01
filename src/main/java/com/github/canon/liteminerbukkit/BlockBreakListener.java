@@ -1,5 +1,6 @@
 package com.github.canon.liteminerbukkit;
 
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -8,6 +9,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
 
@@ -79,7 +81,6 @@ public class BlockBreakListener implements Listener {
 
         Block startBlock = event.getBlock();
         Material targetType = startBlock.getType();
-        ItemStack tool = player.getInventory().getItemInMainHand();
 
         Set<Block> blocksToMine = getBlocksToMine(player, startBlock, targetType, state.shape());
 
@@ -92,19 +93,21 @@ public class BlockBreakListener implements Listener {
 
             if (!shouldMine(block)) continue;
 
+            // 破壊後は getType() が AIR になるため、硬度は破壊前に控える
+            boolean instantBreak = block.getType().getHardness() == 0.0f;
+
             // クリエイティブモードは耐久・満腹度処理をスキップ (オリジナルと同じ)
-            if (player.getGameMode() == org.bukkit.GameMode.CREATIVE) {
+            if (player.getGameMode() == GameMode.CREATIVE) {
                 block.setType(Material.AIR);
                 continue;
             }
 
+            ItemStack tool = player.getInventory().getItemInMainHand();
+            int maxDur = tool.getType().getMaxDurability();
+
             // 耐久値チェック: 残り2以下で停止 (preventToolBreaking の再現)
-            if (tool.getItemMeta() instanceof Damageable dm) {
-                int maxDur = tool.getType().getMaxDurability();
-                if (maxDur > 0) {
-                    int damage = dm.getDamage();
-                    if (maxDur - damage <= 2) break;
-                }
+            if (maxDur > 0 && tool.getItemMeta() instanceof Damageable dm && maxDur - dm.getDamage() <= 2) {
+                break;
             }
 
             block.breakNaturally(tool, true);
@@ -117,9 +120,9 @@ public class BlockBreakListener implements Listener {
 
             // ツール耐久消耗: hardness == 0 のブロック (草花など即時破壊) は消費しない
             // (オリジナルの state.getDestroySpeed() != 0.0f チェックに相当)
-            if (block.getType().getHardness() != 0.0f && tool.getItemMeta() instanceof Damageable dm) {
-                dm.setDamage(dm.getDamage() + 1);
-                tool.setItemMeta(dm);
+            // Unbreaking等はバニラと同じく damageItemStack に任せる
+            if (!instantBreak && maxDur > 0) {
+                player.damageItemStack(EquipmentSlot.HAND, 1);
             }
         }
     }
