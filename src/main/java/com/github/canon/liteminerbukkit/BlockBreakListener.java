@@ -1,7 +1,9 @@
 package com.github.canon.liteminerbukkit;
 
+import org.bukkit.FluidCollisionMode;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
@@ -200,6 +202,7 @@ public class BlockBreakListener implements Listener {
         // getTargetBlockFace() は「ブロックの当たった面」= プレイヤー側の面
         // その逆 (opposite) = 壁の内部方向 = 掘り進む向き
         BlockFace face = getTargetBlockFace(player);
+        if (face == null) return result; // 視線がブロックに当たっていない
         // UP/DOWNは水平向き優先 (オリジナルはraytrace.getDirection().getOppositeで水平優先)
         BlockFace tunnelDir;
         if (face == BlockFace.UP || face == BlockFace.DOWN) {
@@ -240,6 +243,7 @@ public class BlockBreakListener implements Listener {
         result.add(origin);
 
         BlockFace face = getTargetBlockFace(player);
+        if (face == null) return result; // 視線がブロックに当たっていない
         BlockFace stairDir = getStairDirection(player, face);
 
         Block cursor = origin;
@@ -271,7 +275,7 @@ public class BlockBreakListener implements Listener {
         Set<Block> result = new HashSet<>();
 
         BlockFace face = getTargetBlockFace(player);
-        if (face == null) face = BlockFace.SOUTH;
+        if (face == null) return Set.of(origin); // 視線がブロックに当たっていない
 
         BlockFace up, down, left, right;
 
@@ -310,16 +314,13 @@ public class BlockBreakListener implements Listener {
     }
 
     /**
-     * プレイヤーが見ているブロックの「当たった面」を返す
+     * プレイヤーが見ているブロックの「当たった面」を返す。
+     * オリジナルと同じ OUTLINE 判定+液体無視なので、草花などの非solidブロックでも面が取れる。
+     * 当たっていなければ null。
      */
     protected BlockFace getTargetBlockFace(Player player) {
-        List<Block> twoBlocks = player.getLastTwoTargetBlocks(null, 10);
-        if (twoBlocks.size() != 2 || !twoBlocks.get(1).getType().isSolid()) return BlockFace.SOUTH;
-        Block targetBlock = twoBlocks.get(1);
-        Block adjacent = twoBlocks.get(0);
-
-        BlockFace f = targetBlock.getFace(adjacent);
-        return f != null ? f : BlockFace.SOUTH;
+        double reach = player.getAttribute(Attribute.BLOCK_INTERACTION_RANGE).getValue();
+        return player.getTargetBlockFace((int) Math.ceil(reach), FluidCollisionMode.NEVER);
     }
 
     /**
