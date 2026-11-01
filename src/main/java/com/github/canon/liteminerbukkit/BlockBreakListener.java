@@ -19,7 +19,8 @@ public class BlockBreakListener implements Listener {
 
     private final LiteminerBukkit plugin;
     private static final int MAX_BLOCKS = 64;
-    private static final float EXHAUSTION_PER_BLOCK = 0.025f;
+    // オリジナルの food_exhaustion 既定値
+    private static final float EXHAUSTION_PER_BLOCK = 0.2f;
 
     // ShapelessのBlockFamilyマッチング用 (石炭↔深層石炭鉱石 など)
     private static final Map<Material, Set<Material>> BLOCK_FAMILIES = new HashMap<>();
@@ -114,8 +115,6 @@ public class BlockBreakListener implements Listener {
             block.breakNaturally(tool, true, true);
 
             // 満腹度消耗: causeFoodExhaustion の再現
-            // Bukkit に直接の API はないため、exhaustion を加算して飢餓連鎖を正しく発生させる
-            // (4.0 を超えると満腹度/サチュレーションを消費するバニラ動作はサーバーのフードティックが処理)
             float newExhaustion = player.getExhaustion() + EXHAUSTION_PER_BLOCK;
             player.setExhaustion(Math.min(newExhaustion, 40.0f)); // cap to prevent overflow
 
