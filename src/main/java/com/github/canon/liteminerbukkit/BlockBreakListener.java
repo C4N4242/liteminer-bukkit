@@ -87,9 +87,11 @@ public class BlockBreakListener implements Listener {
 
         Set<Block> blocksToMine = getBlocksToMine(player, startBlock, targetType, state.shape());
 
-        // 原点に近い順でソート (元のMODと同様)
+        // 原点に近い順でソート (オリジナルはマンハッタン距離)
+        int ox = startBlock.getX(), oy = startBlock.getY(), oz = startBlock.getZ();
         List<Block> sorted = new ArrayList<>(blocksToMine);
-        sorted.sort(Comparator.comparingDouble(b -> b.getLocation().distanceSquared(startBlock.getLocation())));
+        sorted.sort(Comparator.comparingInt(b ->
+                Math.abs(b.getX() - ox) + Math.abs(b.getY() - oy) + Math.abs(b.getZ() - oz)));
 
         for (Block block : sorted) {
             if (block.equals(startBlock)) continue; // イベントで自然に壊れる
