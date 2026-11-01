@@ -110,7 +110,8 @@ public class BlockBreakListener implements Listener {
                 break;
             }
 
-            block.breakNaturally(tool, true);
+            // 3引数目は dropExperience (オリジナルはXPもドロップさせる)
+            block.breakNaturally(tool, true, true);
 
             // 満腹度消耗: causeFoodExhaustion の再現
             // Bukkit に直接の API はないため、exhaustion を加算して飢餓連鎖を正しく発生させる
