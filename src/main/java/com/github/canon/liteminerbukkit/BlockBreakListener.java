@@ -64,7 +64,6 @@ public class BlockBreakListener implements Listener {
     protected static boolean shouldMine(Block block) {
         Material mat = block.getType();
         if (mat == Material.AIR || mat == Material.CAVE_AIR || mat == Material.VOID_AIR) return false;
-        if (mat.isLegacy()) return false;
         // 液体
         if (mat == Material.WATER || mat == Material.LAVA) return false;
         // Hardness -1 = indestructible (bedrock etc.)
