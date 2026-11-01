@@ -132,6 +132,9 @@ public class BlockBreakListener implements Listener {
     // ===== シェイプ別ブロック収集 =====
 
     private Set<Block> getBlocksToMine(Player player, Block origin, Material targetType, int shapeIndex) {
+        // オリジナルは Tunnel/Staircase/3x3 を withoutInstantBreakExpansion で包んでいる:
+        // 即時破壊ブロック (松明・草花など) を叩いたときは周囲へ展開しない
+        if (shapeIndex != 0 && origin.getType().getHardness() <= 0) return Set.of(origin);
         return switch (shapeIndex) {
             case 1 -> smallTunnel(player, origin);
             case 2 -> staircaseUp(player, origin);
