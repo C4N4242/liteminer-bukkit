@@ -135,7 +135,7 @@ public class BlockBreakListener implements Listener {
     private Set<Block> getBlocksToMine(Player player, Block origin, Material targetType, int shapeIndex) {
         // オリジナルは Tunnel/Staircase/3x3 を withoutInstantBreakExpansion で包んでいる:
         // 即時破壊ブロック (松明・草花など) を叩いたときは周囲へ展開しない
-        if (shapeIndex != 0 && origin.getType().getHardness() <= 0) return Set.of(origin);
+        if (shapeIndex != 0 && origin.getType().getHardness() == 0.0f) return Set.of(origin);
         return switch (shapeIndex) {
             case 1 -> smallTunnel(player, origin);
             case 2 -> staircaseUp(player, origin);
@@ -151,7 +151,7 @@ public class BlockBreakListener implements Listener {
      * (BFSではなくDFS+距離ソートがオリジナルと同じ挙動)
      */
     private Set<Block> shapeless(Block origin, Material targetType) {
-        Set<Block> result = new HashSet<>();
+        Set<Block> result = new LinkedHashSet<>();
         Set<Block> visited = new HashSet<>();
         result.add(origin);
         shapelessDFS(origin, origin, targetType, result, visited);
@@ -200,7 +200,7 @@ public class BlockBreakListener implements Listener {
      * shouldMine()を満たすブロックを最大64個掘り進める (型不問)
      */
     private Set<Block> smallTunnel(Player player, Block origin) {
-        Set<Block> result = new HashSet<>();
+        Set<Block> result = new LinkedHashSet<>();
         result.add(origin);
 
         // getTargetBlockFace() は「ブロックの当たった面」= プレイヤー側の面
@@ -243,7 +243,7 @@ public class BlockBreakListener implements Listener {
     }
 
     protected Set<Block> staircase(Player player, Block origin, boolean isUp) {
-        Set<Block> result = new HashSet<>();
+        Set<Block> result = new LinkedHashSet<>();
         result.add(origin);
 
         BlockFace face = getTargetBlockFace(player);
@@ -276,7 +276,7 @@ public class BlockBreakListener implements Listener {
      * 叩いた面に対して垂直な3x3平面を破壊する (型不問、shouldMine()準拠)
      */
     private Set<Block> threeByThree(Player player, Block origin) {
-        Set<Block> result = new HashSet<>();
+        Set<Block> result = new LinkedHashSet<>();
 
         BlockFace face = getTargetBlockFace(player);
         if (face == null) return Set.of(origin); // 視線がブロックに当たっていない
