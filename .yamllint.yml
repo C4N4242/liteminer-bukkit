@@ -1,0 +1,6 @@
+extends: default
+
+rules:
+  # Pinned action SHAs plus their version comments do not fit in 80 columns.
+  line-length:
+    max: 100

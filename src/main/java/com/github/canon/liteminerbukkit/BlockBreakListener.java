@@ -1,6 +1,9 @@
 package com.github.canon.liteminerbukkit;
 
+import org.bukkit.FluidCollisionMode;
+import org.bukkit.GameMode;
 import org.bukkit.Material;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
@@ -8,6 +11,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
 
@@ -17,7 +21,8 @@ public class BlockBreakListener implements Listener {
 
     private final LiteminerBukkit plugin;
     private static final int MAX_BLOCKS = 64;
-    private static final float EXHAUSTION_PER_BLOCK = 0.025f;
+    // オリジナルの food_exhaustion 既定値
+    private static final float EXHAUSTION_PER_BLOCK = 0.2f;
 
     // ShapelessのBlockFamilyマッチング用 (石炭↔深層石炭鉱石 など)
     private static final Map<Material, Set<Material>> BLOCK_FAMILIES = new HashMap<>();
@@ -59,7 +64,6 @@ public class BlockBreakListener implements Listener {
     protected static boolean shouldMine(Block block) {
         Material mat = block.getType();
         if (mat == Material.AIR || mat == Material.CAVE_AIR || mat == Material.VOID_AIR) return false;
-        if (mat.isLegacy()) return false;
         // 液体
         if (mat == Material.WATER || mat == Material.LAVA) return false;
         // Hardness -1 = indestructible (bedrock etc.)
@@ -79,47 +83,49 @@ public class BlockBreakListener implements Listener {
 
         Block startBlock = event.getBlock();
         Material targetType = startBlock.getType();
-        ItemStack tool = player.getInventory().getItemInMainHand();
 
         Set<Block> blocksToMine = getBlocksToMine(player, startBlock, targetType, state.shape());
 
-        // 原点に近い順でソート (元のMODと同様)
+        // 原点に近い順でソート (オリジナルはマンハッタン距離)
+        int ox = startBlock.getX(), oy = startBlock.getY(), oz = startBlock.getZ();
         List<Block> sorted = new ArrayList<>(blocksToMine);
-        sorted.sort(Comparator.comparingDouble(b -> b.getLocation().distanceSquared(startBlock.getLocation())));
+        sorted.sort(Comparator.comparingInt(b ->
+                Math.abs(b.getX() - ox) + Math.abs(b.getY() - oy) + Math.abs(b.getZ() - oz)));
 
         for (Block block : sorted) {
             if (block.equals(startBlock)) continue; // イベントで自然に壊れる
 
             if (!shouldMine(block)) continue;
 
+            // 破壊後は getType() が AIR になるため、硬度は破壊前に控える
+            boolean instantBreak = block.getType().getHardness() == 0.0f;
+
             // クリエイティブモードは耐久・満腹度処理をスキップ (オリジナルと同じ)
-            if (player.getGameMode() == org.bukkit.GameMode.CREATIVE) {
+            if (player.getGameMode() == GameMode.CREATIVE) {
                 block.setType(Material.AIR);
                 continue;
             }
 
+            ItemStack tool = player.getInventory().getItemInMainHand();
+            int maxDur = tool.getType().getMaxDurability();
+
             // 耐久値チェック: 残り2以下で停止 (preventToolBreaking の再現)
-            if (tool.getItemMeta() instanceof Damageable dm) {
-                int maxDur = tool.getType().getMaxDurability();
-                if (maxDur > 0) {
-                    int damage = dm.getDamage();
-                    if (maxDur - damage <= 2) break;
-                }
+            if (maxDur > 0 && tool.getItemMeta() instanceof Damageable dm && maxDur - dm.getDamage() <= 2) {
+                break;
             }
 
-            block.breakNaturally(tool, true);
+            // 3引数目は dropExperience (オリジナルはXPもドロップさせる)
+            block.breakNaturally(tool, true, true);
 
             // 満腹度消耗: causeFoodExhaustion の再現
-            // Bukkit に直接の API はないため、exhaustion を加算して飢餓連鎖を正しく発生させる
-            // (4.0 を超えると満腹度/サチュレーションを消費するバニラ動作はサーバーのフードティックが処理)
             float newExhaustion = player.getExhaustion() + EXHAUSTION_PER_BLOCK;
             player.setExhaustion(Math.min(newExhaustion, 40.0f)); // cap to prevent overflow
 
             // ツール耐久消耗: hardness == 0 のブロック (草花など即時破壊) は消費しない
             // (オリジナルの state.getDestroySpeed() != 0.0f チェックに相当)
-            if (block.getType().getHardness() != 0.0f && tool.getItemMeta() instanceof Damageable dm) {
-                dm.setDamage(dm.getDamage() + 1);
-                tool.setItemMeta(dm);
+            // Unbreaking等はバニラと同じく damageItemStack に任せる
+            if (!instantBreak && maxDur > 0) {
+                player.damageItemStack(EquipmentSlot.HAND, 1);
             }
         }
     }
@@ -127,6 +133,9 @@ public class BlockBreakListener implements Listener {
     // ===== シェイプ別ブロック収集 =====
 
     private Set<Block> getBlocksToMine(Player player, Block origin, Material targetType, int shapeIndex) {
+        // オリジナルは Tunnel/Staircase/3x3 を withoutInstantBreakExpansion で包んでいる:
+        // 即時破壊ブロック (松明・草花など) を叩いたときは周囲へ展開しない
+        if (shapeIndex != 0 && origin.getType().getHardness() <= 0) return Set.of(origin);
         return switch (shapeIndex) {
             case 1 -> smallTunnel(player, origin);
             case 2 -> staircaseUp(player, origin);
@@ -197,6 +206,7 @@ public class BlockBreakListener implements Listener {
         // getTargetBlockFace() は「ブロックの当たった面」= プレイヤー側の面
         // その逆 (opposite) = 壁の内部方向 = 掘り進む向き
         BlockFace face = getTargetBlockFace(player);
+        if (face == null) return result; // 視線がブロックに当たっていない
         // UP/DOWNは水平向き優先 (オリジナルはraytrace.getDirection().getOppositeで水平優先)
         BlockFace tunnelDir;
         if (face == BlockFace.UP || face == BlockFace.DOWN) {
@@ -237,6 +247,7 @@ public class BlockBreakListener implements Listener {
         result.add(origin);
 
         BlockFace face = getTargetBlockFace(player);
+        if (face == null) return result; // 視線がブロックに当たっていない
         BlockFace stairDir = getStairDirection(player, face);
 
         Block cursor = origin;
@@ -268,7 +279,7 @@ public class BlockBreakListener implements Listener {
         Set<Block> result = new HashSet<>();
 
         BlockFace face = getTargetBlockFace(player);
-        if (face == null) face = BlockFace.SOUTH;
+        if (face == null) return Set.of(origin); // 視線がブロックに当たっていない
 
         BlockFace up, down, left, right;
 
@@ -307,16 +318,13 @@ public class BlockBreakListener implements Listener {
     }
 
     /**
-     * プレイヤーが見ているブロックの「当たった面」を返す
+     * プレイヤーが見ているブロックの「当たった面」を返す。
+     * オリジナルと同じ OUTLINE 判定+液体無視なので、草花などの非solidブロックでも面が取れる。
+     * 当たっていなければ null。
      */
     protected BlockFace getTargetBlockFace(Player player) {
-        List<Block> twoBlocks = player.getLastTwoTargetBlocks(null, 10);
-        if (twoBlocks.size() != 2 || !twoBlocks.get(1).getType().isSolid()) return BlockFace.SOUTH;
-        Block targetBlock = twoBlocks.get(1);
-        Block adjacent = twoBlocks.get(0);
-
-        BlockFace f = targetBlock.getFace(adjacent);
-        return f != null ? f : BlockFace.SOUTH;
+        double reach = player.getAttribute(Attribute.BLOCK_INTERACTION_RANGE).getValue();
+        return player.getTargetBlockFace((int) Math.ceil(reach), FluidCollisionMode.NEVER);
     }
 
     /**
