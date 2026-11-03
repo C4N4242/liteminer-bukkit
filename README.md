@@ -19,7 +19,7 @@ Players who have the Liteminer mod installed can use all its shapes seamlessly. 
 ### Additional behaviour (matching the original mod)
 
 - **BlockFamily ore matching** — `COAL_ORE` ↔ `DEEPSLATE_COAL_ORE`, `IRON_ORE` ↔ `DEEPSLATE_IRON_ORE`, etc. are treated as the same ore family in Shapeless mode
-- **Tool durability consumption** — each extra block consumes 1 durability (instant-break / hardness-0 blocks are exempt)
+- **Tool durability consumption** — each extra block consumes 1 durability, with Unbreaking and item-break events handled like vanilla (instant-break / hardness-0 blocks are exempt)
 - **Tool break prevention** — vein-mining stops automatically when the tool has ≤ 2 durability remaining
 - **Food exhaustion** — each extra block applies 0.2 exhaustion (the mod's default), matching vanilla hunger mechanics
 - **Instant-break guard** — breaking hardness-0 blocks (torches, flowers, crops…) never expands Tunnel / Staircase / 3×3 into the surrounding structure
